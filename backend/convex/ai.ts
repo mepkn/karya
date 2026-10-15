@@ -4,6 +4,7 @@ import { z } from "zod";
 import { internal } from "./_generated/api";
 import { action, internalMutation, type ActionCtx } from "./_generated/server";
 import { computePert, normalizeRiskAnalysis, validateOMP, type RiskAnalysis } from "../../shared/pert";
+import { MAX_SLICES, MIN_SLICES, normalizeSlices, type SliceDraft } from "../../shared/execute";
 import { requireActionUserId } from "./lib/actionAuth";
 import { GEMINI_FALLBACK_MODEL, GEMINI_MODEL, geminiClient, geminiErrorMessage, isBusyError } from "./lib/gemini";
 import { groqErrorMessage, groqJson } from "./lib/groq";
@@ -202,5 +203,76 @@ ${note}
     const result = normalizeRiskAnalysis(reply.result);
     await ctx.runMutation(internal.estimates.storeRiskAnalysis, { userId: prep.userId, ticketId: a.ticketId, customText: note, ...result });
     return { ok: true, result, provider: reply.provider };
+  },
+});
+
+const slicerSchema = z.object({
+  slices: z.array(
+    z.object({
+      order: z.number(),
+      title: z.string(),
+      phase: z.string(),
+      allocatedHours: z.number(),
+    }),
+  ),
+});
+
+const slicerResponseSchema = {
+  type: Type.OBJECT,
+  properties: {
+    slices: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          order: { type: Type.INTEGER },
+          title: { type: Type.STRING },
+          phase: { type: Type.STRING, enum: ["setup", "core", "ui", "testing", "other"] },
+          allocatedHours: { type: Type.NUMBER },
+        },
+        required: ["order", "title", "phase", "allocatedHours"],
+        propertyOrdering: ["order", "title", "phase", "allocatedHours"],
+      },
+    },
+  },
+  required: ["slices"],
+};
+
+const SLICER_JSON_SHAPE = '{ "slices": [{ "order": integer, "title": string, "phase": "setup"|"core"|"ui"|"testing"|"other", "allocatedHours": number }] }';
+
+/** TASK_SLICER (brief §9): a 3-8 slice plan, re-normalized to the target here. */
+export const sliceTicket = action({
+  args: { ticketId: v.id("tickets") },
+  handler: async (ctx, { ticketId }): Promise<AiResult<SliceDraft[]>> => {
+    const prep = await prepare(ctx);
+    const ticket = await ctx.runQuery(internal.slices.slicerContext, { userId: prep.userId, ticketId });
+    if ("error" in prep) return prep.error;
+
+    const prompt = `MODE: TASK_SLICER
+
+Rules:
+1. Produce ${MIN_SLICES}-${MAX_SLICES} sequential, concrete slices whose allocatedHours sum to targetHours.
+2. Each slice ideally 0.5-2.5 hours; split anything larger.
+3. Order: setup/schema -> core logic -> UI wiring -> testing/edge cases. Tag each with a phase.
+4. Reflect the ticked pain points (e.g. schema migration -> a migration + rollback slice; third-party API -> a sandbox/integration slice; unclear specs -> a clarification slice).
+5. Titles: short, imperative, specific to this ticket (at most 60 characters).
+
+<ticket_summary>
+${ticket.summary}
+</ticket_summary>
+<ticket_description>
+${truncate(ticket.descriptionText, MAX_DESCRIPTION_CHARS) || "(none)"}
+</ticket_description>
+Ticked pain points: ${ticket.painPoints.length ? ticket.painPoints.join("; ") : "none"}
+Accepted suggested subtasks (include each as a slice): ${ticket.suggestedSubtasks.length ? ticket.suggestedSubtasks.join("; ") : "none"}
+targetHours: ${ticket.targetHours}`;
+
+    const reply = await generateJson(prep.providers, prompt, { gemini: slicerResponseSchema, groq: SLICER_JSON_SHAPE }, slicerSchema);
+    if ("error" in reply) return { ok: false, error: reply.error };
+    const ordered = [...reply.result.slices].sort((a, b) => a.order - b.order);
+    const slices = normalizeSlices(ordered, ticket.targetHours);
+    if (slices.length === 0) return { ok: false, error: `The AI returned fewer than ${MIN_SLICES} slices. Try again or slice by hand.` };
+    await ctx.runMutation(internal.slices.storeAiPlan, { userId: prep.userId, ticketId, slices });
+    return { ok: true, result: slices, provider: reply.provider };
   },
 });

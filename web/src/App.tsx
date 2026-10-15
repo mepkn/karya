@@ -3,6 +3,7 @@ import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
 import { Spinner } from "@/components/ui/spinner";
 import { AppShell } from "@/components/layout/AppShell";
 import { EstimateTab } from "@/components/estimate/EstimateTab";
+import { ExecuteTab } from "@/components/execute/ExecuteTab";
 import { HomePage } from "@/pages/HomePage";
 import { Placeholder } from "@/pages/Placeholder";
 import { SettingsPage } from "@/pages/SettingsPage";
@@ -34,7 +35,7 @@ export default function App() {
                   path="execute"
                   element={
                     <RequireUnlocked tab="execute">
-                      <Placeholder title="Slicer and radial cockpit" milestone={5} />
+                      <ExecuteTab />
                     </RequireUnlocked>
                   }
                 />

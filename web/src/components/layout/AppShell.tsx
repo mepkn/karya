@@ -18,6 +18,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
+import { useTimerTitle } from "@/lib/use-timer-title";
 import { Inbox } from "./Inbox";
 
 /** Top bar + Jira inbox sidebar + the routed main area. */
@@ -25,6 +26,7 @@ export function AppShell() {
   const viewer = useQuery(api.settings.viewer);
   const ensureDefaults = useMutation(api.settings.ensureDefaults);
   const { signOut } = useAuthActions();
+  useTimerTitle();
 
   const syncAction = useAction(api.jira.syncMyTickets);
   const [syncing, setSyncing] = useState(false);

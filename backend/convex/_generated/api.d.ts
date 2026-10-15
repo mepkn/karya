@@ -24,6 +24,7 @@ import type * as lib_groq from "../lib/groq.js";
 import type * as lib_jira from "../lib/jira.js";
 import type * as lib_secrets from "../lib/secrets.js";
 import type * as settings from "../settings.js";
+import type * as slices from "../slices.js";
 import type * as tickets from "../tickets.js";
 
 import type {
@@ -49,6 +50,7 @@ declare const fullApi: ApiFromModules<{
   "lib/jira": typeof lib_jira;
   "lib/secrets": typeof lib_secrets;
   settings: typeof settings;
+  slices: typeof slices;
   tickets: typeof tickets;
 }>;
 
