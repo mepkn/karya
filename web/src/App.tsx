@@ -40,7 +40,14 @@ export default function App() {
                     </RequireUnlocked>
                   }
                 />
-                <Route path="calibrate" element={<ReceiptTab />} />
+                <Route
+                  path="calibrate"
+                  element={
+                    <RequireUnlocked tab="calibrate">
+                      <ReceiptTab />
+                    </RequireUnlocked>
+                  }
+                />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

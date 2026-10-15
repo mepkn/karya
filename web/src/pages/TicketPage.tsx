@@ -65,7 +65,7 @@ export function TicketPage() {
 }
 
 /** Redirects a locked tab back to Estimate. */
-export function RequireUnlocked({ tab, children }: { tab: "execute"; children: React.ReactNode }) {
+export function RequireUnlocked({ tab, children }: { tab: "execute" | "calibrate"; children: React.ReactNode }) {
   const ticket = useTicket();
   const def = TABS.find((t) => t.path === tab)!;
   return def.unlocked(ticket) ? children : <Navigate to="../estimate" replace />;
