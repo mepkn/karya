@@ -1,5 +1,6 @@
 import type { Doc, Id } from "@convex/_generated/dataModel";
-import { colorState, describeArc, formatMinutes, liveElapsed, pacing, sliceAngles, type ColorState } from "@shared/execute";
+import { colorState, describeArc, formatFocusDays, formatMinutes, liveElapsed, pacing, sliceAngles, type ColorState } from "@shared/execute";
+import { useDailyFocusHours } from "@/lib/focus";
 import { cn } from "@/lib/utils";
 
 const SIZE = 340;
@@ -35,6 +36,7 @@ export function RadialDial({
   onSelect: (id: Id<"slices">) => void;
   children: React.ReactNode;
 }) {
+  const focusHours = useDailyFocusHours();
   const angles = sliceAngles(slices.map((s) => s.allocatedSeconds));
   const pace = pacing(slices, targetSecs, now);
   const spentDeg = pace.spentPct * 360;
@@ -110,6 +112,11 @@ export function RadialDial({
       <p className={cn("text-sm font-medium", Math.abs(pace.aheadSeconds) < 60 ? "text-muted-foreground" : ahead ? "text-done" : "text-wrap")}>
         {paceLabel}
       </p>
+      {focusHours !== undefined && (
+        <p className="text-xs text-muted-foreground">
+          {formatMinutes(Math.max(0, targetSecs - pace.spentSeconds))} of target left, {formatFocusDays(targetSecs - pace.spentSeconds, focusHours)}
+        </p>
+      )}
       <p className="sr-only" aria-live="off">
         {summary}
       </p>

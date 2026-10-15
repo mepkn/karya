@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { colorState, describeArc, formatClock, liveElapsed, normalizeSlices, pacing, sliceAngles, validatePlan } from "./execute";
+import { colorState, describeArc, formatClock, formatFocusDays, liveElapsed, normalizeSlices, pacing, sliceAngles, validatePlan } from "./execute";
 
 const raw = (hours: number[]) => hours.map((h, i) => ({ title: `Slice ${i + 1}`, phase: "core", allocatedHours: h }));
 
@@ -96,5 +96,15 @@ describe("sliceAngles", () => {
       { start: 91, end: 359 },
     ]);
     expect(sliceAngles([5])).toEqual([{ start: 0, end: 360 }]);
+  });
+});
+
+describe("formatFocusDays", () => {
+  it("divides by the daily focus hours to one decimal", () => {
+    expect(formatFocusDays(8 * 3600, 5.5)).toBe("≈ 1.5 focus days");
+    expect(formatFocusDays(5.5 * 3600, 5.5)).toBe("≈ 1 focus day");
+    expect(formatFocusDays(0, 5.5)).toBe("≈ 0 focus days");
+    expect(formatFocusDays(60, 5.5)).toBe("≈ 0.1 focus days");
+    expect(formatFocusDays(3600, 0)).toBe("");
   });
 });

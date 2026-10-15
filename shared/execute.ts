@@ -173,3 +173,13 @@ export function sliceAngles(allocations: number[], gapDeg = 2): { start: number;
     return seg;
   });
 }
+
+// ---- Focus days ----
+
+/** `≈ 1.5 focus days`: seconds of work over the user's daily focus hours, to one decimal. */
+export function formatFocusDays(seconds: number, dailyFocusHours: number): string {
+  if (!(dailyFocusHours > 0)) return "";
+  const days = Math.max(0, seconds) / 3600 / dailyFocusHours;
+  const shown = days > 0 && days < 0.1 ? 0.1 : Math.round(days * 10) / 10;
+  return `≈ ${shown} focus ${shown === 1 ? "day" : "days"}`;
+}

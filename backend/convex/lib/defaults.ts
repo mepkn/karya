@@ -2,7 +2,7 @@ import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { DEFAULT_PAIN_POINTS } from "../../../shared/painPoints";
 
-export const DEFAULT_DAILY_FOCUS_HOURS = 5.5;
+export const DEFAULT_DAILY_FOCUS_HOURS = 6;
 
 /** Creates the user's settings row and any missing pain-point weights. Idempotent. */
 export async function ensureUserDefaults(ctx: MutationCtx, userId: Id<"users">) {

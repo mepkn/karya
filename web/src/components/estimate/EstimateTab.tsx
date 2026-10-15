@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Doc } from "@convex/_generated/dataModel";
 import { computePert, estimateSummary, sumAiFactorPct, sumPainPointPct, validateOMP } from "@shared/pert";
+import { formatFocusDays } from "@shared/execute";
+import { useDailyFocusHours } from "@/lib/focus";
 import { useTicket } from "@/lib/ticket-tabs";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
@@ -213,6 +215,7 @@ function JiraContext({ ticket }: { ticket: Doc<"tickets"> }) {
 type PainPoint = { key: string; label: string; personalWeightPct: number };
 
 function Receipt({ ticket, result, ticked, painPoints }: { ticket: Doc<"tickets">; result: ReturnType<typeof computePert> | null; ticked: string[]; painPoints: PainPoint[] }) {
+  const focusHours = useDailyFocusHours();
   if (!result) {
     return <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Enter O / M / P hours to see the receipt.</div>;
   }
@@ -251,6 +254,7 @@ function Receipt({ ticket, result, ticked, painPoints }: { ticket: Doc<"tickets"
       </dl>
       <dl className="space-y-1 border-t px-4 py-3">
         <Line label="Target" value={hrs(result.target)} strong />
+        {focusHours !== undefined && <p className="text-right font-sans text-xs text-muted-foreground">{formatFocusDays(result.target * 3600, focusHours)}</p>}
         <Line label="Buffer shield" value={hrs(result.buffer)} />
       </dl>
       <dl className="border-t bg-primary/5 px-4 py-3">

@@ -5,8 +5,9 @@ import { ArrowDown, ArrowUp, GripVertical, Lock, Plus, Save, Sparkles, Trash2 } 
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Doc } from "@convex/_generated/dataModel";
-import { MAX_SLICES, PHASE_LABEL, MAX_TITLE_CHARS, PHASES, formatMinutes, targetSeconds, validatePlan, type Phase } from "@shared/execute";
+import { MAX_SLICES, PHASE_LABEL, MAX_TITLE_CHARS, PHASES, formatFocusDays, formatMinutes, targetSeconds, validatePlan, type Phase } from "@shared/execute";
 import { errorMessage } from "@/lib/errors";
+import { useDailyFocusHours } from "@/lib/focus";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ export function PlanEditor({ ticket, slices }: { ticket: Doc<"tickets">; slices:
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState<"ai" | "save" | "lock" | null>(null);
   const [aiError, setAiError] = useState<{ text: string; needsKey?: boolean } | null>(null);
+  const focusHours = useDailyFocusHours();
   const [dragging, setDragging] = useState<number | null>(null);
 
   const target = targetSeconds(ticket.targetHours ?? 0);
@@ -100,7 +102,9 @@ export function PlanEditor({ ticket, slices }: { ticket: Doc<"tickets">; slices:
         <Button variant="outline" onClick={() => add()} disabled={busy !== null || rows.length >= MAX_SLICES}>
           <Plus /> Add slice
         </Button>
-        <span className="ml-auto text-sm text-muted-foreground">Target {formatMinutes(target)}</span>
+        <span className="ml-auto text-sm text-muted-foreground">Target {formatMinutes(target)}
+          {focusHours !== undefined && ` (${formatFocusDays(target, focusHours)})`}
+        </span>
       </div>
 
       {aiError && (
