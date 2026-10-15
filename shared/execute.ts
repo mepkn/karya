@@ -2,6 +2,7 @@
 
 export const PHASES = ["setup", "core", "ui", "testing", "other"] as const;
 export type Phase = (typeof PHASES)[number];
+export const PHASE_LABEL: Record<Phase, string> = { setup: "Setup", core: "Core", ui: "UI", testing: "Testing", other: "Other" };
 
 export const MIN_SLICES = 3;
 export const MAX_SLICES = 8;

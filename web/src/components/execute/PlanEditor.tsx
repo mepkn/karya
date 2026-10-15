@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, GripVertical, Lock, Plus, Save, Sparkles, Trash2 } 
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Doc } from "@convex/_generated/dataModel";
-import { MAX_SLICES, MAX_TITLE_CHARS, PHASES, formatMinutes, targetSeconds, validatePlan, type Phase } from "@shared/execute";
+import { MAX_SLICES, PHASE_LABEL, MAX_TITLE_CHARS, PHASES, formatMinutes, targetSeconds, validatePlan, type Phase } from "@shared/execute";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -14,8 +14,6 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 
 type Row = { key: string; title: string; phase: Phase; minutes: string };
-
-const PHASE_LABEL: Record<Phase, string> = { setup: "Setup", core: "Core", ui: "UI", testing: "Testing", other: "Other" };
 
 const toRow = (s: { title: string; phase: Phase; allocatedSeconds: number }): Row => ({
   key: crypto.randomUUID(),

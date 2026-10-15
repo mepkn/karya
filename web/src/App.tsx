@@ -5,7 +5,8 @@ import { AppShell } from "@/components/layout/AppShell";
 import { EstimateTab } from "@/components/estimate/EstimateTab";
 import { ExecuteTab } from "@/components/execute/ExecuteTab";
 import { HomePage } from "@/pages/HomePage";
-import { Placeholder } from "@/pages/Placeholder";
+import { CalibratePage } from "@/pages/CalibratePage";
+import { ReceiptTab } from "@/components/calibrate/ReceiptTab";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { SignInPage } from "@/pages/SignInPage";
 import { RequireUnlocked, TicketPage } from "@/pages/TicketPage";
@@ -27,7 +28,7 @@ export default function App() {
             <Route element={<AppShell />}>
               <Route index element={<HomePage />} />
               <Route path="settings" element={<SettingsPage />} />
-              <Route path="calibrate" element={<div className="p-6"><Placeholder title="Global calibration" milestone={7} /></div>} />
+              <Route path="calibrate" element={<CalibratePage />} />
               <Route path="t/:jiraKey" element={<TicketPage />}>
                 <Route index element={<Navigate to="estimate" replace />} />
                 <Route path="estimate" element={<EstimateTab />} />
@@ -39,7 +40,7 @@ export default function App() {
                     </RequireUnlocked>
                   }
                 />
-                <Route path="calibrate" element={<Placeholder title="Estimation receipt" milestone={7} />} />
+                <Route path="calibrate" element={<ReceiptTab />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

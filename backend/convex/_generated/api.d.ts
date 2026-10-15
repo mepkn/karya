@@ -11,6 +11,7 @@
 import type * as ai from "../ai.js";
 import type * as aiKeys from "../aiKeys.js";
 import type * as auth from "../auth.js";
+import type * as calibration from "../calibration.js";
 import type * as estimates from "../estimates.js";
 import type * as http from "../http.js";
 import type * as jira from "../jira.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   ai: typeof ai;
   aiKeys: typeof aiKeys;
   auth: typeof auth;
+  calibration: typeof calibration;
   estimates: typeof estimates;
   http: typeof http;
   jira: typeof jira;

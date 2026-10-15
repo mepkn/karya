@@ -5,7 +5,7 @@ import { Ban, Check, CircleCheck, Flag, Hand, Pause, Play, Plus, RotateCcw, Scis
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
-import { IDLE_GUARD_SECONDS, colorState, formatClock, formatMinutes, liveElapsed, targetSeconds } from "@shared/execute";
+import { IDLE_GUARD_SECONDS, PHASE_LABEL, colorState, formatClock, formatMinutes, liveElapsed, targetSeconds } from "@shared/execute";
 import { useTicket } from "@/lib/ticket-tabs";
 import { errorMessage } from "@/lib/errors";
 import { useNow } from "@/lib/use-now";
@@ -36,8 +36,6 @@ export function ExecuteTab() {
   }
   return <Cockpit ticket={ticket} slices={slices} />;
 }
-
-const PHASE_LABEL: Record<Doc<"slices">["phase"], string> = { setup: "Setup", core: "Core", ui: "UI", testing: "Testing", other: "Other" };
 
 const TONE_TEXT = { calm: "text-calm", wrap: "text-wrap", over: "text-over" } as const;
 
