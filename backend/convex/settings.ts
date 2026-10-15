@@ -15,8 +15,11 @@ export const viewer = query({
     return {
       email: user?.email ?? "",
       hasGeminiKey: settings?.geminiKeyEnc !== undefined,
-      jiraConnected: settings?.jiraRefreshTokenEnc !== undefined,
+      jiraConnected: settings?.jiraRefreshTokenEnc !== undefined && settings.jiraCloudId !== undefined,
       jiraSiteName: settings?.jiraSiteName ?? null,
+      jiraSiteUrl: settings?.jiraSiteUrl ?? null,
+      // Non-secret site names, offered when the account has several Jira sites.
+      jiraPendingSites: settings?.jiraRefreshTokenEnc !== undefined ? (settings.jiraPendingSites ?? null) : null,
       jiraLastSyncedAt: settings?.jiraLastSyncedAt ?? null,
       dailyFocusHours: settings?.dailyFocusHours ?? DEFAULT_DAILY_FOCUS_HOURS,
     };

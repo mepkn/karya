@@ -30,6 +30,8 @@ export default defineSchema({
     jiraRefreshTokenEnc: v.optional(v.string()),
     jiraExpiresAt: v.optional(v.number()),
     jiraLastSyncedAt: v.optional(v.number()),
+    // Sites offered after an OAuth callback that found more than one; cleared once picked.
+    jiraPendingSites: v.optional(v.array(v.object({ id: v.string(), name: v.string(), url: v.string() }))),
     geminiKeyEnc: v.optional(v.string()),
     dailyFocusHours: v.number(),
   }).index("by_user", ["userId"]),

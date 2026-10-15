@@ -7,6 +7,7 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GeminiKeySection } from "@/components/settings/GeminiKeySection";
+import { JiraSection } from "@/components/settings/JiraSection";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -47,9 +48,13 @@ export function SettingsPage() {
       <h1 className="text-lg font-semibold">Settings</h1>
 
       <Section title="Jira">
-        <p className="text-sm text-muted-foreground">
-          {viewer.jiraConnected ? `Connected to ${viewer.jiraSiteName ?? "Jira"}.` : "Not connected. Read-only Jira connect arrives in milestone 3."}
-        </p>
+        <JiraSection
+          connected={viewer.jiraConnected}
+          siteName={viewer.jiraSiteName}
+          siteUrl={viewer.jiraSiteUrl}
+          pendingSites={viewer.jiraPendingSites}
+          lastSyncedAt={viewer.jiraLastSyncedAt}
+        />
       </Section>
 
       <Section title="Gemini API key">

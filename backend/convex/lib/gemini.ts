@@ -60,10 +60,12 @@ export async function pingGemini(apiKey: string): Promise<void> {
 }
 
 export class GeminiModelUnavailable extends Error {
-  constructor(readonly available: string[]) {
+  readonly available: string[];
+  constructor(available: string[]) {
     super(
       `Model ${GEMINI_MODEL} isn't available to this key.` +
         (available.length ? ` Flash models it can use: ${available.slice(0, 6).join(", ")}.` : ""),
     );
+    this.available = available;
   }
 }
