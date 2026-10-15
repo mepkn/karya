@@ -1,14 +1,22 @@
 import { ApiError, GoogleGenAI } from "@google/genai";
 
 /**
- * The one place the Gemini model is named. An alias Google keeps on its current
- * Flash model: new keys can't call gemini-2.5-flash (limited to existing users
- * since Sept 2026). Pin a versioned name here if output drifts after an update.
+ * The one place the Gemini models are named. Flash-Lite answers in ~2s with no
+ * thinking; gemini-flash-latest (3.8 Flash in Oct 2026) took ~16s and was often
+ * overloaded (503). The fallback is used when the first model is busy or slow.
  */
-export const GEMINI_MODEL = "gemini-flash-latest";
+export const GEMINI_MODEL = "gemini-3.1-flash-lite";
+export const GEMINI_FALLBACK_MODEL = "gemini-3-flash-preview";
+const REQUEST_TIMEOUT_MS = 10_000;
 
 export function geminiClient(apiKey: string): GoogleGenAI {
-  return new GoogleGenAI({ apiKey });
+  return new GoogleGenAI({ apiKey, httpOptions: { timeout: REQUEST_TIMEOUT_MS } });
+}
+
+/** Worth retrying on the fallback model: overloaded, or no answer in time. */
+export function isBusyError(err: unknown): boolean {
+  if (err instanceof ApiError) return err.status === 503 || err.status === 504 || err.status === 500;
+  return err instanceof Error && /timed? ?out|abort/i.test(err.name + err.message);
 }
 
 /** A message the user can act on, for any error the Gemini SDK throws. */

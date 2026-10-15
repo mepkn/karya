@@ -10,16 +10,25 @@ import { Spinner } from "@/components/ui/spinner";
 
 type Status = { ok: true } | { ok: false; error: string } | null;
 
+type Provider = "gemini" | "groq";
+
+const INFO: Record<Provider, { name: string; placeholder: string; url: string; urlLabel: string }> = {
+  gemini: { name: "Gemini", placeholder: "AIza…", url: "https://aistudio.google.com/apikey", urlLabel: "aistudio.google.com/apikey" },
+  groq: { name: "Groq", placeholder: "gsk_…", url: "https://console.groq.com/keys", urlLabel: "console.groq.com/keys" },
+};
+
 function errorText(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err);
-  return /look like a Gemini/.test(raw) ? "That doesn't look like a Gemini API key." : "Something went wrong. Try again.";
+  const m = /That doesn't look like a \w+ API key\./.exec(raw);
+  return m ? m[0] : "Something went wrong. Try again.";
 }
 
 /** Paste → Test → Save. The key goes to Convex once and never comes back to the browser. */
-export function GeminiKeySection({ hasKey }: { hasKey: boolean }) {
-  const testKey = useAction(api.geminiKey.testKey);
-  const saveKey = useAction(api.geminiKey.saveKey);
-  const removeKey = useMutation(api.settings.removeGeminiKey);
+export function AiKeySection({ provider, hasKey }: { provider: Provider; hasKey: boolean }) {
+  const info = INFO[provider];
+  const testKey = useAction(api.aiKeys.testKey);
+  const saveKey = useAction(api.aiKeys.saveKey);
+  const removeKey = useMutation(api.settings.removeAiKey);
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState<"test" | "save" | "remove" | null>(null);
   const [status, setStatus] = useState<Status>(null);
@@ -32,7 +41,7 @@ export function GeminiKeySection({ hasKey }: { hasKey: boolean }) {
       const result = await fn();
       setStatus(result);
       if (kind === "save" && result?.ok) {
-        toast.success("Gemini key saved");
+        toast.success(`${info.name} key saved`);
         setKey("");
         setEditing(false);
       }
@@ -46,9 +55,9 @@ export function GeminiKeySection({ hasKey }: { hasKey: boolean }) {
   async function remove() {
     setBusy("remove");
     try {
-      await removeKey();
+      await removeKey({ provider });
       setStatus(null);
-      toast.success("Gemini key removed");
+      toast.success(`${info.name} key removed`);
     } finally {
       setBusy(null);
     }
@@ -62,8 +71,8 @@ export function GeminiKeySection({ hasKey }: { hasKey: boolean }) {
   );
 
   const link = (
-    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="text-primary underline-offset-4 hover:underline">
-      aistudio.google.com/apikey
+    <a href={info.url} target="_blank" rel="noreferrer" className="text-primary underline-offset-4 hover:underline">
+      {info.urlLabel}
     </a>
   );
 
@@ -74,7 +83,7 @@ export function GeminiKeySection({ hasKey }: { hasKey: boolean }) {
           <KeyRound className="size-4 text-primary" /> A key is saved (encrypted). It is only used for your own AI calls.
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" disabled={busy !== null} onClick={() => void run("test", () => testKey({}))}>
+          <Button variant="outline" disabled={busy !== null} onClick={() => void run("test", () => testKey({ provider }))}>
             {busy === "test" && <Spinner />} Test saved key
           </Button>
           <Button variant="outline" disabled={busy !== null} onClick={() => setEditing(true)}>
@@ -91,20 +100,20 @@ export function GeminiKeySection({ hasKey }: { hasKey: boolean }) {
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    void run("save", () => saveKey({ key }));
+    void run("save", () => saveKey({ provider, key }));
   }
 
   return (
     <form onSubmit={submit}>
       <FieldGroup>
         <Field>
-          <FieldLabel htmlFor="gemini-key">API key</FieldLabel>
+          <FieldLabel htmlFor={`${provider}-key`}>API key</FieldLabel>
           <Input
-            id="gemini-key"
+            id={`${provider}-key`}
             type="password"
             autoComplete="off"
             spellCheck={false}
-            placeholder="AIza…"
+            placeholder={info.placeholder}
             value={key}
             onChange={(e) => {
               setKey(e.target.value);
@@ -115,7 +124,7 @@ export function GeminiKeySection({ hasKey }: { hasKey: boolean }) {
         </Field>
         {statusLine}
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" disabled={!key.trim() || busy !== null} onClick={() => void run("test", () => testKey({ key }))}>
+          <Button type="button" variant="outline" disabled={!key.trim() || busy !== null} onClick={() => void run("test", () => testKey({ provider, key }))}>
             {busy === "test" && <Spinner />} Test key
           </Button>
           <Button type="submit" disabled={!key.trim() || busy !== null}>

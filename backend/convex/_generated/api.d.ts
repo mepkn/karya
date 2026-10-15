@@ -8,8 +8,10 @@
  * @module
  */
 
+import type * as ai from "../ai.js";
+import type * as aiKeys from "../aiKeys.js";
 import type * as auth from "../auth.js";
-import type * as geminiKey from "../geminiKey.js";
+import type * as estimates from "../estimates.js";
 import type * as http from "../http.js";
 import type * as jira from "../jira.js";
 import type * as lib_access from "../lib/access.js";
@@ -18,6 +20,7 @@ import type * as lib_allowlist from "../lib/allowlist.js";
 import type * as lib_defaults from "../lib/defaults.js";
 import type * as lib_demoTickets from "../lib/demoTickets.js";
 import type * as lib_gemini from "../lib/gemini.js";
+import type * as lib_groq from "../lib/groq.js";
 import type * as lib_jira from "../lib/jira.js";
 import type * as lib_secrets from "../lib/secrets.js";
 import type * as settings from "../settings.js";
@@ -30,8 +33,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  ai: typeof ai;
+  aiKeys: typeof aiKeys;
   auth: typeof auth;
-  geminiKey: typeof geminiKey;
+  estimates: typeof estimates;
   http: typeof http;
   jira: typeof jira;
   "lib/access": typeof lib_access;
@@ -40,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   "lib/defaults": typeof lib_defaults;
   "lib/demoTickets": typeof lib_demoTickets;
   "lib/gemini": typeof lib_gemini;
+  "lib/groq": typeof lib_groq;
   "lib/jira": typeof lib_jira;
   "lib/secrets": typeof lib_secrets;
   settings: typeof settings;

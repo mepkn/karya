@@ -17,6 +17,17 @@ export const phase = v.union(
   v.literal("other"),
 );
 
+export const aiFactor = v.object({
+  id: v.string(),
+  note: v.string(),
+  impactPct: v.number(),
+  reasoning: v.string(),
+  suggestedSubtasks: v.array(v.string()),
+});
+
+export const aiProvider = v.union(v.literal("gemini"), v.literal("groq"));
+export type AiProvider = "gemini" | "groq";
+
 export default defineSchema({
   ...authTables,
 
@@ -33,6 +44,9 @@ export default defineSchema({
     // Sites offered after an OAuth callback that found more than one; cleared once picked.
     jiraPendingSites: v.optional(v.array(v.object({ id: v.string(), name: v.string(), url: v.string() }))),
     geminiKeyEnc: v.optional(v.string()),
+    groqKeyEnc: v.optional(v.string()),
+    // Tried first when both keys are saved; the other is the fallback. Unset means Gemini.
+    aiProvider: v.optional(aiProvider),
     dailyFocusHours: v.number(),
   }).index("by_user", ["userId"]),
 
@@ -84,8 +98,10 @@ export default defineSchema({
     aiIsValid: v.optional(v.boolean()),
     aiModifierPct: v.optional(v.number()),
     aiReasoning: v.optional(v.string()),
-    aiAccepted: v.optional(v.boolean()),
     aiSuggestedSubtasks: v.optional(v.array(v.string())),
+    // The ai* fields above hold the latest analysis until it is accepted or
+    // dismissed; accepted ones become custom pain points here.
+    aiFactors: v.optional(v.array(aiFactor)),
     targetHours: v.optional(v.number()),
     bufferShieldSeconds: v.optional(v.number()),
     bufferUsedSeconds: v.number(),

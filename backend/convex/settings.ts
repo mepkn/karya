@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { currentUserId, getSettings, requireUserId } from "./lib/access";
 import { isAllowedEmail } from "./lib/allowlist";
+import { aiProvider } from "./schema";
 import { DEFAULT_DAILY_FOCUS_HOURS, ensureUserDefaults } from "./lib/defaults";
 
 /** What the client may know about the signed-in user: never secrets, only flags. */
@@ -15,6 +16,8 @@ export const viewer = query({
     return {
       email: user?.email ?? "",
       hasGeminiKey: settings?.geminiKeyEnc !== undefined,
+      hasGroqKey: settings?.groqKeyEnc !== undefined,
+      aiProvider: settings?.aiProvider ?? "gemini",
       jiraConnected: settings?.jiraRefreshTokenEnc !== undefined && settings.jiraCloudId !== undefined,
       jiraSiteName: settings?.jiraSiteName ?? null,
       jiraSiteUrl: settings?.jiraSiteUrl ?? null,
@@ -50,25 +53,40 @@ export const isAllowed = internalQuery({
   handler: async (ctx, { userId }) => isAllowedEmail((await ctx.db.get(userId))?.email),
 });
 
-/** The encrypted Gemini key, for actions only. */
-export const geminiKeyEnc = internalQuery({
+/** The encrypted AI keys and preferred provider, for actions only. */
+export const aiKeysEnc = internalQuery({
   args: { userId: v.id("users") },
-  handler: async (ctx, { userId }) => (await getSettings(ctx, userId))?.geminiKeyEnc ?? null,
-});
-
-export const storeGeminiKeyEnc = internalMutation({
-  args: { userId: v.id("users"), geminiKeyEnc: v.string() },
-  handler: async (ctx, { userId, geminiKeyEnc }) => {
-    await ensureUserDefaults(ctx, userId);
-    const settings = await getSettings(ctx, userId);
-    await ctx.db.patch(settings!._id, { geminiKeyEnc });
+  handler: async (ctx, { userId }) => {
+    const s = await getSettings(ctx, userId);
+    return { gemini: s?.geminiKeyEnc, groq: s?.groqKeyEnc, preferred: s?.aiProvider ?? ("gemini" as const) };
   },
 });
 
-export const removeGeminiKey = mutation({
-  args: {},
-  handler: async (ctx) => {
+const keyField = { gemini: "geminiKeyEnc", groq: "groqKeyEnc" } as const;
+
+export const storeAiKeyEnc = internalMutation({
+  args: { userId: v.id("users"), provider: aiProvider, keyEnc: v.string() },
+  handler: async (ctx, { userId, provider, keyEnc }) => {
+    await ensureUserDefaults(ctx, userId);
+    const settings = await getSettings(ctx, userId);
+    await ctx.db.patch(settings!._id, { [keyField[provider]]: keyEnc });
+  },
+});
+
+export const removeAiKey = mutation({
+  args: { provider: aiProvider },
+  handler: async (ctx, { provider }) => {
     const settings = await getSettings(ctx, await requireUserId(ctx));
-    if (settings) await ctx.db.patch(settings._id, { geminiKeyEnc: undefined });
+    if (settings) await ctx.db.patch(settings._id, { [keyField[provider]]: undefined });
+  },
+});
+
+export const setAiProvider = mutation({
+  args: { provider: aiProvider },
+  handler: async (ctx, { provider }) => {
+    const userId = await requireUserId(ctx);
+    await ensureUserDefaults(ctx, userId);
+    const settings = await getSettings(ctx, userId);
+    await ctx.db.patch(settings!._id, { aiProvider: provider });
   },
 });

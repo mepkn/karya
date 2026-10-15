@@ -45,3 +45,40 @@ export function computePert({ optimistic: o, mostLikely: m, pessimistic: p, pain
   const painPointHrs = rawTotal === 0 ? 0 : riskHrs * (painPointPct / rawTotal);
   return { base, sd, riskPct, target, buffer, safeCommit: target + buffer, painPointHrs, aiHrs: riskHrs - painPointHrs };
 }
+
+/** Sum of the ticked pain points' weights; unknown keys count as 0. */
+export function sumPainPointPct(ticked: readonly string[], weights: Readonly<Record<string, number>>): number {
+  return ticked.reduce((sum, key) => sum + (weights[key] ?? 0), 0);
+}
+
+/** Sum of the accepted AI factors' impact. */
+export function sumAiFactorPct(factors: readonly { impactPct: number }[]): number {
+  return factors.reduce((sum, f) => sum + f.impactPct, 0);
+}
+
+const hrs = (n: number) => `${Math.round(n * 10) / 10}h`;
+
+/** One line to paste into a standup or a ticket comment. */
+export function estimateSummary(jiraKey: string, r: PertResult): string {
+  const risk = r.riskPct === 0 ? "" : `, risk ${r.riskPct > 0 ? "+" : ""}${Math.round(r.riskPct)}%`;
+  return `${jiraKey}: target ${hrs(r.target)}, safe commit ${hrs(r.safeCommit)} (PERT ${hrs(r.base)}${risk}, ~95% confidence)`;
+}
+
+export type RiskAnalysis = {
+  isValidFactor: boolean;
+  impactPercentage: number;
+  reasoning: string;
+  suggestedSubtasks: string[];
+};
+
+export const AI_IMPACT_MIN_PCT = -30;
+export const AI_IMPACT_MAX_PCT = 50;
+
+/** Enforces the analyzer's rules (brief §9) whatever the model returned. */
+export function normalizeRiskAnalysis(raw: RiskAnalysis): RiskAnalysis {
+  const impact = raw.isValidFactor
+    ? Math.min(AI_IMPACT_MAX_PCT, Math.max(AI_IMPACT_MIN_PCT, Math.round(raw.impactPercentage)))
+    : 0;
+  const subtasks = impact > 20 ? raw.suggestedSubtasks.map((s) => s.trim()).filter(Boolean).slice(0, 2) : [];
+  return { isValidFactor: raw.isValidFactor, impactPercentage: impact, reasoning: raw.reasoning.trim(), suggestedSubtasks: subtasks };
+}

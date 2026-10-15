@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
 import { Spinner } from "@/components/ui/spinner";
 import { AppShell } from "@/components/layout/AppShell";
+import { EstimateTab } from "@/components/estimate/EstimateTab";
 import { HomePage } from "@/pages/HomePage";
 import { Placeholder } from "@/pages/Placeholder";
 import { SettingsPage } from "@/pages/SettingsPage";
@@ -28,7 +29,7 @@ export default function App() {
               <Route path="calibrate" element={<div className="p-6"><Placeholder title="Global calibration" milestone={7} /></div>} />
               <Route path="t/:jiraKey" element={<TicketPage />}>
                 <Route index element={<Navigate to="estimate" replace />} />
-                <Route path="estimate" element={<Placeholder title="Estimate workbench" milestone={4} />} />
+                <Route path="estimate" element={<EstimateTab />} />
                 <Route
                   path="execute"
                   element={

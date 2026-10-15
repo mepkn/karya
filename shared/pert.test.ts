@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computePert, validateOMP } from "./pert";
+import { computePert, estimateSummary, normalizeRiskAnalysis, sumPainPointPct, validateOMP } from "./pert";
 
 describe("computePert", () => {
   it("computes base, SD, target, buffer and safe commit", () => {
@@ -28,4 +28,31 @@ describe("validateOMP", () => {
   it("accepts ordered positive values", () => expect(validateOMP(1, 2, 3)).toBeNull());
   it("rejects zero", () => expect(validateOMP(0, 2, 3)).not.toBeNull());
   it("rejects out of order", () => expect(validateOMP(3, 2, 4)).not.toBeNull());
+});
+
+describe("sumPainPointPct", () => {
+  it("adds ticked weights, boosters subtract, unknown keys count 0", () => {
+    expect(sumPainPointPct(["a", "b", "x"], { a: 25, b: -15 })).toBe(10);
+    expect(sumPainPointPct([], { a: 25 })).toBe(0);
+  });
+});
+
+describe("estimateSummary", () => {
+  it("formats a one-line estimate", () => {
+    const r = computePert({ optimistic: 2, mostLikely: 4, pessimistic: 8, painPointPct: 20, aiPct: 0 });
+    expect(estimateSummary("ABC-1", r)).toBe("ABC-1: target 5.2h, safe commit 7.6h (PERT 4.3h, risk +20%, ~95% confidence)");
+  });
+});
+
+describe("normalizeRiskAnalysis", () => {
+  it("zeroes invalid factors and drops their subtasks", () => {
+    const r = normalizeRiskAnalysis({ isValidFactor: false, impactPercentage: 30, reasoning: " vague ", suggestedSubtasks: ["x"] });
+    expect(r).toEqual({ isValidFactor: false, impactPercentage: 0, reasoning: "vague", suggestedSubtasks: [] });
+  });
+  it("clamps impact to [-30, 50] and keeps at most 2 subtasks only above 20%", () => {
+    expect(normalizeRiskAnalysis({ isValidFactor: true, impactPercentage: 80, reasoning: "r", suggestedSubtasks: ["a", "b", "c"] }))
+      .toEqual({ isValidFactor: true, impactPercentage: 50, reasoning: "r", suggestedSubtasks: ["a", "b"] });
+    expect(normalizeRiskAnalysis({ isValidFactor: true, impactPercentage: -45.4, reasoning: "r", suggestedSubtasks: ["a"] }).impactPercentage).toBe(-30);
+    expect(normalizeRiskAnalysis({ isValidFactor: true, impactPercentage: 20, reasoning: "r", suggestedSubtasks: ["a"] }).suggestedSubtasks).toEqual([]);
+  });
 });
