@@ -2,11 +2,11 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, mutation, query, type MutationCtx } from "./_generated/server";
 import { MAX_TITLE_CHARS, validatePlan } from "../../shared/execute";
+import { MAX_NOTE_CHARS, actualTotalSeconds } from "../../shared/scope";
 import { currentUserId, getOwnedTicket, requireUserId } from "./lib/access";
 import { phase } from "./schema";
 
 const BUFFER_DRAW_SECONDS = 15 * 60;
-const MAX_NOTE_CHARS = 500;
 
 const draft = v.object({ title: v.string(), phase, allocatedSeconds: v.number() });
 
@@ -258,6 +258,37 @@ export const block = mutation({
     if (slice.status === "pending") await ctx.db.patch(sliceId, { status: "paused" });
     await ctx.db.patch(sliceId, { blockedReason: text });
     await log(ctx, slice, "pause", { seconds, note: `Blocked: ${text}` });
+  },
+});
+
+// ---- Ticket completion (brief §7f) ----
+
+async function ticketSlices(ctx: MutationCtx, ticketId: Id<"tickets">) {
+  return await ctx.db
+    .query("slices")
+    .withIndex("by_ticket", (q) => q.eq("ticketId", ticketId))
+    .collect();
+}
+
+/** Marks the ticket done once every slice (bonus ones too) is done. */
+export const completeTicket = mutation({
+  args: { ticketId: v.id("tickets") },
+  handler: async (ctx, { ticketId }) => {
+    const ticket = await getOwnedTicket(ctx, ticketId);
+    if (ticket.karyaStatus !== "in_progress") throw new ConvexError("Only a ticket in progress can be completed.");
+    const slices = await ticketSlices(ctx, ticketId);
+    if (slices.length === 0 || slices.some((s) => s.status !== "completed")) throw new ConvexError("Finish every slice first.");
+    await ctx.db.patch(ticketId, { karyaStatus: "completed", completedAt: Date.now(), actualTotalSeconds: actualTotalSeconds(slices) });
+  },
+});
+
+/** Back to in progress; the slices keep their time. */
+export const reopenTicket = mutation({
+  args: { ticketId: v.id("tickets") },
+  handler: async (ctx, { ticketId }) => {
+    const ticket = await getOwnedTicket(ctx, ticketId);
+    if (ticket.karyaStatus !== "completed") return;
+    await ctx.db.patch(ticketId, { karyaStatus: "in_progress", completedAt: undefined, actualTotalSeconds: undefined });
   },
 });
 

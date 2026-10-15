@@ -23,6 +23,7 @@ import type * as lib_gemini from "../lib/gemini.js";
 import type * as lib_groq from "../lib/groq.js";
 import type * as lib_jira from "../lib/jira.js";
 import type * as lib_secrets from "../lib/secrets.js";
+import type * as scope from "../scope.js";
 import type * as settings from "../settings.js";
 import type * as slices from "../slices.js";
 import type * as tickets from "../tickets.js";
@@ -49,6 +50,7 @@ declare const fullApi: ApiFromModules<{
   "lib/groq": typeof lib_groq;
   "lib/jira": typeof lib_jira;
   "lib/secrets": typeof lib_secrets;
+  scope: typeof scope;
   settings: typeof settings;
   slices: typeof slices;
   tickets: typeof tickets;

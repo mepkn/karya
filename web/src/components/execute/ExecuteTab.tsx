@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import type { OptimisticLocalStore } from "convex/browser";
 import { useMutation, useQuery } from "convex/react";
-import { Ban, Check, CircleCheck, Hand, Pause, Play, Plus, RotateCcw, Scissors, ShieldAlert } from "lucide-react";
+import { Ban, Check, CircleCheck, Flag, Hand, Pause, Play, Plus, RotateCcw, Scissors, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Doc, Id } from "@convex/_generated/dataModel";
@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlanEditor } from "./PlanEditor";
 import { RadialDial } from "./RadialDial";
+import { ScopeCatcher } from "./ScopeCatcher";
 
 export function ExecuteTab() {
   const ticket = useTicket();
@@ -99,6 +100,7 @@ function Cockpit({ ticket, slices }: { ticket: Doc<"tickets">; slices: Doc<"slic
   const isDone = selected.status === "completed";
   const next = slices.find((s) => s.order > selected.order && s.status !== "completed");
   const allDone = slices.every((s) => s.status === "completed");
+  const ticketDone = ticket.karyaStatus === "completed";
 
   const run = (p: Promise<unknown>, fallback: string) => p.catch((err: unknown) => toast.error(errorMessage(err, fallback)));
 
@@ -117,7 +119,7 @@ function Cockpit({ ticket, slices }: { ticket: Doc<"tickets">; slices: Doc<"slic
           <span className="text-xs text-muted-foreground">
             {isDone ? "spent, done" : remaining < 0 ? `overtime on ${formatMinutes(selected.allocatedSeconds)}` : `left of ${formatMinutes(selected.allocatedSeconds)}`}
           </span>
-          <div className="mt-2 flex gap-2">
+          <div className={cn("mt-2 flex gap-2", ticketDone && "hidden")}>
             {isDone ? (
               <Button size="sm" variant="outline" onClick={() => run(reopen({ sliceId: selected._id }), "Could not reopen.")}>
                 <RotateCcw /> Reopen
@@ -147,21 +149,18 @@ function Cockpit({ ticket, slices }: { ticket: Doc<"tickets">; slices: Doc<"slic
             Wrap-up zone — focus on the happy path, park the polish.
           </p>
         )}
-        {!isDone && elapsed > 0 && tone === "over" && <PacingCheck ticket={ticket} slice={selected} />}
+        {!ticketDone && !isDone && elapsed > 0 && tone === "over" && <PacingCheck ticket={ticket} slice={selected} />}
         {selected.blockedReason && (
           <p className="flex max-w-sm items-center gap-2 text-sm text-over">
             <Ban className="size-4 shrink-0" /> Blocked: {selected.blockedReason}
           </p>
         )}
+        <ScopeCatcher ticket={ticket} slices={slices} stampSliceId={active?._id ?? (isDone ? undefined : selected._id)} />
       </div>
 
       <div className="space-y-4">
         <BufferShield ticket={ticket} />
-        {allDone && (
-          <p className="flex items-center gap-2 rounded-lg border border-done/40 bg-done/10 px-3 py-2 text-sm text-done">
-            <CircleCheck className="size-4" /> All slices done.
-          </p>
-        )}
+        {(allDone || ticketDone) && <Completion ticket={ticket} />}
         <ol className="space-y-1" aria-label="Slices">
           {slices.map((s) => (
             <SliceRow key={s._id} slice={s} now={now} selected={s._id === selected._id} onSelect={() => setSelectedId(s._id)} />
@@ -196,6 +195,7 @@ function SliceRow({ slice, now, selected, onSelect }: { slice: Doc<"slices">; no
           aria-hidden
         />
         <span className={cn("min-w-0 flex-1 truncate", slice.status === "completed" && "text-muted-foreground line-through")}>{slice.title}</span>
+        {slice.isBonus && <span className="shrink-0 rounded-full border border-done/50 px-1.5 text-xs text-done">Bonus</span>}
         <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
           {formatMinutes(elapsed)} / {formatMinutes(slice.allocatedSeconds)}
         </span>
@@ -203,6 +203,73 @@ function SliceRow({ slice, now, selected, onSelect }: { slice: Doc<"slices">; no
         <span className="sr-only">{slice.blockedReason ? "blocked" : slice.status}</span>
       </button>
     </li>
+  );
+}
+
+/** brief §7f: mark the ticket complete once every slice is done; reopen asks first. */
+function Completion({ ticket }: { ticket: Doc<"tickets"> }) {
+  const completeTicket = useMutation(api.slices.completeTicket);
+  const reopenTicket = useMutation(api.slices.reopenTicket);
+  const [confirmReopen, setConfirmReopen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function act(p: Promise<unknown>, ok: string) {
+    setBusy(true);
+    try {
+      await p;
+      toast.success(ok);
+      setConfirmReopen(false);
+    } catch (err) {
+      toast.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (ticket.karyaStatus !== "completed") {
+    return (
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-done/40 bg-done/10 px-3 py-2 text-sm">
+        <span className="flex items-center gap-2 text-done">
+          <CircleCheck className="size-4" /> All slices done.
+        </span>
+        <Button size="sm" className="ml-auto" disabled={busy} onClick={() => act(completeTicket({ ticketId: ticket._id }), "Ticket complete")}>
+          <Flag /> Mark ticket complete
+        </Button>
+      </div>
+    );
+  }
+
+  const actual = ticket.actualTotalSeconds ?? 0;
+  const target = targetSeconds(ticket.targetHours ?? 0);
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-done/40 bg-done/10 px-3 py-2 text-sm">
+      <span className="flex items-center gap-2 text-done">
+        <CircleCheck className="size-4" /> Completed
+        {ticket.completedAt && ` ${new Date(ticket.completedAt).toLocaleDateString()}`}
+      </span>
+      <span className="text-muted-foreground">
+        Actual <strong className="text-foreground">{formatMinutes(actual)}</strong> vs target {formatMinutes(target)}
+      </span>
+      <Button size="sm" variant="outline" className="ml-auto" onClick={() => setConfirmReopen(true)}>
+        <RotateCcw /> Reopen
+      </Button>
+      <Dialog open={confirmReopen} onOpenChange={setConfirmReopen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reopen {ticket.jiraKey}?</DialogTitle>
+            <DialogDescription>It goes back to in progress and drops out of calibration until you complete it again. Slice time is kept.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmReopen(false)}>
+              Cancel
+            </Button>
+            <Button disabled={busy} onClick={() => act(reopenTicket({ ticketId: ticket._id }), "Ticket reopened")}>
+              Reopen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 
