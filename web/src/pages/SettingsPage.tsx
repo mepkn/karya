@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { GeminiKeySection } from "@/components/settings/GeminiKeySection";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -52,13 +53,7 @@ export function SettingsPage() {
       </Section>
 
       <Section title="Gemini API key">
-        <p className="text-sm text-muted-foreground">
-          {viewer.hasGeminiKey ? "A key is saved." : "No key saved. Key save and test arrive in milestone 2."} Get a free key at{" "}
-          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="text-primary underline-offset-4 hover:underline">
-            aistudio.google.com/apikey
-          </a>
-          .
-        </p>
+        <GeminiKeySection hasKey={viewer.hasGeminiKey} />
       </Section>
 
       <Section title="Focus">

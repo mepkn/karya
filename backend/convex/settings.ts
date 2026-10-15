@@ -1,6 +1,7 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { currentUserId, getSettings, requireUserId } from "./lib/access";
+import { isAllowedEmail } from "./lib/allowlist";
 import { DEFAULT_DAILY_FOCUS_HOURS, ensureUserDefaults } from "./lib/defaults";
 
 /** What the client may know about the signed-in user: never secrets, only flags. */
@@ -38,5 +39,33 @@ export const setDailyFocusHours = mutation({
     await ensureUserDefaults(ctx, userId);
     const settings = await getSettings(ctx, userId);
     await ctx.db.patch(settings!._id, { dailyFocusHours: hours });
+  },
+});
+
+export const isAllowed = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => isAllowedEmail((await ctx.db.get(userId))?.email),
+});
+
+/** The encrypted Gemini key, for actions only. */
+export const geminiKeyEnc = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => (await getSettings(ctx, userId))?.geminiKeyEnc ?? null,
+});
+
+export const storeGeminiKeyEnc = internalMutation({
+  args: { userId: v.id("users"), geminiKeyEnc: v.string() },
+  handler: async (ctx, { userId, geminiKeyEnc }) => {
+    await ensureUserDefaults(ctx, userId);
+    const settings = await getSettings(ctx, userId);
+    await ctx.db.patch(settings!._id, { geminiKeyEnc });
+  },
+});
+
+export const removeGeminiKey = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const settings = await getSettings(ctx, await requireUserId(ctx));
+    if (settings) await ctx.db.patch(settings._id, { geminiKeyEnc: undefined });
   },
 });
