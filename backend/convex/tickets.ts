@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { DEMO_TICKETS } from "./lib/demoTickets";
-import { currentUserId, getOwnedTicket, requireUserId } from "./lib/access";
+import { currentUserId, requireUserId } from "./lib/access";
 
 /** The sidebar inbox: the user's tickets, most recently updated in Jira first. */
 export const list = query({
@@ -26,11 +26,6 @@ export const list = query({
         bufferUsedSeconds: t.bufferUsedSeconds,
       }));
   },
-});
-
-export const get = query({
-  args: { id: v.id("tickets") },
-  handler: async (ctx, { id }) => await getOwnedTicket(ctx, id),
 });
 
 /** A ticket by its Jira key; null when missing or not the user's. */

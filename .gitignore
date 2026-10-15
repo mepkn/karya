@@ -25,3 +25,6 @@ dist-ssr
 
 # local env files
 .env*.local
+
+# Convex local backend state
+.convex/
