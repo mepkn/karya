@@ -1,16 +1,13 @@
-import { Type } from "@google/genai";
 import { ConvexError, v } from "convex/values";
 import { z } from "zod";
 import { internal } from "./_generated/api";
-import { action, internalMutation, type ActionCtx } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
+import { action } from "./_generated/server";
 import { computePert, normalizeRiskAnalysis, validateOMP, type RiskAnalysis } from "../../shared/pert";
 import { MAX_SLICES, MIN_SLICES, normalizeSlices, type SliceDraft } from "../../shared/execute";
 import { requireActionUserId } from "./lib/actionAuth";
-import { GEMINI_FALLBACK_MODEL, GEMINI_MODEL, geminiClient, geminiErrorMessage, isBusyError } from "./lib/gemini";
-import { groqErrorMessage, groqJson } from "./lib/groq";
 import type { Id } from "./_generated/dataModel";
-import type { AiProvider } from "./schema";
-import { decryptSecret } from "./lib/secrets";
+import { generate, KunjiError, kunjiErrorMessage } from "./lib/kunji";
 
 const SYSTEM_INSTRUCTION = `You are Karya, an engineering time-estimation and planning assistant for a single software developer.
 You receive a Jira ticket (summary + description), optional friction factors the developer already ticked,
@@ -19,28 +16,6 @@ Respond ONLY with JSON matching the provided schema. Be concrete and technical; 
 
 const MAX_DESCRIPTION_CHARS = 6000;
 const MAX_NOTE_CHARS = 1000;
-const RATE_LIMIT_PER_MINUTE = 10;
-
-/** Records an AI call, or refuses it when the user made too many in the last minute. */
-export const reserveCall = internalMutation({
-  args: { userId: v.id("users") },
-  handler: async (ctx, { userId }) => {
-    const now = Date.now();
-    const recent = await ctx.db
-      .query("aiCalls")
-      .withIndex("by_user_at", (q) => q.eq("userId", userId).gt("at", now - 60_000))
-      .collect();
-    if (recent.length >= RATE_LIMIT_PER_MINUTE) return false;
-    // Drop rows older than a minute so the table stays small.
-    const old = await ctx.db
-      .query("aiCalls")
-      .withIndex("by_user_at", (q) => q.eq("userId", userId).lte("at", now - 60_000))
-      .take(50);
-    for (const r of old) await ctx.db.delete(r._id);
-    await ctx.db.insert("aiCalls", { userId, at: now });
-    return true;
-  },
-});
 
 const riskSchema = z.object({
   isValidFactor: z.boolean(),
@@ -49,107 +24,46 @@ const riskSchema = z.object({
   suggestedSubtasks: z.array(z.string()),
 });
 
-const riskResponseSchema = {
-  type: Type.OBJECT,
+const riskJsonSchema = {
+  type: "object",
   properties: {
-    isValidFactor: { type: Type.BOOLEAN },
-    impactPercentage: { type: Type.INTEGER },
-    reasoning: { type: Type.STRING },
-    suggestedSubtasks: { type: Type.ARRAY, items: { type: Type.STRING } },
+    isValidFactor: { type: "boolean" },
+    impactPercentage: { type: "integer" },
+    reasoning: { type: "string" },
+    suggestedSubtasks: { type: "array", items: { type: "string" } },
   },
   required: ["isValidFactor", "impactPercentage", "reasoning", "suggestedSubtasks"],
-  propertyOrdering: ["isValidFactor", "impactPercentage", "reasoning", "suggestedSubtasks"],
+  additionalProperties: false,
 };
-
-const RISK_JSON_SHAPE = '{ "isValidFactor": boolean, "impactPercentage": integer, "reasoning": string, "suggestedSubtasks": string[] }';
 
 function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}\n[truncated]` : text;
 }
 
-class InvalidJson extends Error {}
-
-type Provider = { name: AiProvider; apiKey: string };
-const LABEL: Record<AiProvider, string> = { gemini: "Gemini", groq: "Groq" };
-
-function parseReply<T>(text: string, schema: z.ZodType<T>): T | null {
-  try {
-    const parsed = schema.safeParse(JSON.parse(text));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Gemini in JSON mode, on the fallback model when the first one is busy. */
-async function geminiReply(apiKey: string, prompt: string, responseSchema: object): Promise<string> {
-  const client = geminiClient(apiKey);
-  const request = (model: string) =>
-    client.models.generateContent({
-      model,
-      contents: prompt,
-      config: { systemInstruction: SYSTEM_INSTRUCTION, responseMimeType: "application/json", responseSchema, temperature: 0.2 },
-    });
-  try {
-    return (await request(GEMINI_MODEL)).text ?? "";
-  } catch (err) {
-    if (!isBusyError(err)) throw err;
-    return (await request(GEMINI_FALLBACK_MODEL)).text ?? "";
-  }
-}
-
-/** Groq has no response schema here, so the prompt carries the JSON shape. */
-async function groqReply(apiKey: string, prompt: string, jsonShape: string): Promise<string> {
-  return await groqJson(apiKey, SYSTEM_INSTRUCTION, `${prompt}\n\nRespond with a JSON object of exactly this shape:\n${jsonShape}`);
-}
-
 /**
- * Asks each provider in turn (preferred first) until one returns valid JSON;
- * each gets one retry on an unreadable reply. Any failure moves to the next.
+ * Asks kunji (the user's own key, preferred provider first, with kunji's
+ * fallback) for JSON; one retry on an unreadable reply.
  */
-async function generateJson<T>(
-  providers: Provider[],
-  prompt: string,
-  shapes: { gemini: object; groq: string },
-  schema: z.ZodType<T>,
-): Promise<{ result: T; provider: AiProvider } | { error: string }> {
-  const errors: string[] = [];
-  for (const p of providers) {
-    try {
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const text = p.name === "gemini" ? await geminiReply(p.apiKey, prompt, shapes.gemini) : await groqReply(p.apiKey, prompt, shapes.groq);
-        const result = parseReply(text, schema);
-        if (result !== null) return { result, provider: p.name };
-      }
-      throw new InvalidJson();
-    } catch (err) {
-      console.error(`${p.name} call failed`, err instanceof Error ? err.message.slice(0, 500) : err);
-      errors.push(errorText(p.name, err));
+async function generateJson<T>(userEmail: string, prompt: string, jsonSchema: object, schema: z.ZodType<T>): Promise<{ result: T; provider: string } | { error: string; needsKey?: boolean }> {
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const reply = await generate({ userEmail, model: "fast", system: SYSTEM_INSTRUCTION, messages: [{ role: "user", content: prompt }], json: jsonSchema, temperature: 0.2 });
+      const parsed = schema.safeParse(reply.json);
+      if (parsed.success) return { result: parsed.data, provider: reply.provider };
     }
+    return { error: "The AI returned an unreadable answer twice." };
+  } catch (err) {
+    console.error("kunji call failed", err instanceof Error ? err.message.slice(0, 500) : err);
+    return { error: kunjiErrorMessage(err), needsKey: err instanceof KunjiError && err.code === "no_key" };
   }
-  return { error: errors.join(" ") };
 }
 
-function errorText(provider: AiProvider, err: unknown): string {
-  if (err instanceof InvalidJson) return `${LABEL[provider]} returned an unreadable answer twice.`;
-  if (provider === "gemini") return geminiErrorMessage(err);
-  return groqErrorMessage(err);
-}
+type AiResult<T> = { ok: true; result: T; provider: string } | { ok: false; error: string; needsKey?: boolean };
 
-type AiResult<T> = { ok: true; result: T; provider: AiProvider } | { ok: false; error: string; needsKey?: boolean };
-
-/** Shared preamble of every AI action: auth, rate limit, decrypted keys in try order. */
-async function prepare(ctx: ActionCtx): Promise<{ userId: Id<"users">; providers: Provider[] } | { userId: Id<"users">; error: AiResult<never> }> {
+/** Shared preamble of every AI action: the signed-in user and their email for kunji. */
+async function prepare(ctx: ActionCtx): Promise<{ userId: Id<"users">; email: string }> {
   const userId = await requireActionUserId(ctx);
-  const keys = await ctx.runQuery(internal.settings.aiKeysEnc, { userId });
-  const order: AiProvider[] = keys.preferred === "groq" ? ["groq", "gemini"] : ["gemini", "groq"];
-  const available = order.filter((name) => keys[name] !== undefined);
-  if (available.length === 0) return { userId, error: { ok: false, error: "Add a Gemini or Groq API key in Settings to use AI.", needsKey: true } };
-  if (!(await ctx.runMutation(internal.ai.reserveCall, { userId }))) {
-    return { userId, error: { ok: false, error: `Karya allows ${RATE_LIMIT_PER_MINUTE} AI calls a minute. Try again shortly.` } };
-  }
-  const providers = await Promise.all(available.map(async (name) => ({ name, apiKey: await decryptSecret(keys[name]!) })));
-  return { userId, providers };
+  return { userId, email: await ctx.runQuery(internal.settings.userEmail, { userId }) };
 }
 
 /** RISK_ANALYZER (brief §9): the extra effect of the developer's custom note. */
@@ -171,7 +85,6 @@ export const analyzeRisk = action({
 
     const prep = await prepare(ctx);
     const ticket = await ctx.runQuery(internal.estimates.analyzerContext, { userId: prep.userId, ticketId: a.ticketId });
-    if ("error" in prep) return prep.error;
 
     const base = computePert({ optimistic: a.optimisticHrs, mostLikely: a.mostLikelyHrs, pessimistic: a.pessimisticHrs, painPointPct: 0, aiPct: 0 }).base;
     const ticked = a.tickedPainPoints.map((k) => ticket.painPointLabels[k]).filter(Boolean);
@@ -198,8 +111,8 @@ Base PERT estimate: ${base.toFixed(1)} hours
 ${note}
 </developer_note>`;
 
-    const reply = await generateJson(prep.providers, prompt, { gemini: riskResponseSchema, groq: RISK_JSON_SHAPE }, riskSchema);
-    if ("error" in reply) return { ok: false, error: reply.error };
+    const reply = await generateJson(prep.email, prompt, riskJsonSchema, riskSchema);
+    if ("error" in reply) return { ok: false, ...reply };
     const result = normalizeRiskAnalysis(reply.result);
     await ctx.runMutation(internal.estimates.storeRiskAnalysis, { userId: prep.userId, ticketId: a.ticketId, customText: note, ...result });
     return { ok: true, result, provider: reply.provider };
@@ -217,28 +130,27 @@ const slicerSchema = z.object({
   ),
 });
 
-const slicerResponseSchema = {
-  type: Type.OBJECT,
+const slicerJsonSchema = {
+  type: "object",
   properties: {
     slices: {
-      type: Type.ARRAY,
+      type: "array",
       items: {
-        type: Type.OBJECT,
+        type: "object",
         properties: {
-          order: { type: Type.INTEGER },
-          title: { type: Type.STRING },
-          phase: { type: Type.STRING, enum: ["setup", "core", "ui", "testing", "other"] },
-          allocatedHours: { type: Type.NUMBER },
+          order: { type: "integer" },
+          title: { type: "string" },
+          phase: { type: "string", enum: ["setup", "core", "ui", "testing", "other"] },
+          allocatedHours: { type: "number" },
         },
         required: ["order", "title", "phase", "allocatedHours"],
-        propertyOrdering: ["order", "title", "phase", "allocatedHours"],
+        additionalProperties: false,
       },
     },
   },
   required: ["slices"],
+  additionalProperties: false,
 };
-
-const SLICER_JSON_SHAPE = '{ "slices": [{ "order": integer, "title": string, "phase": "setup"|"core"|"ui"|"testing"|"other", "allocatedHours": number }] }';
 
 /** TASK_SLICER (brief §9): a 3-8 slice plan, re-normalized to the target here. */
 export const sliceTicket = action({
@@ -246,7 +158,6 @@ export const sliceTicket = action({
   handler: async (ctx, { ticketId }): Promise<AiResult<SliceDraft[]>> => {
     const prep = await prepare(ctx);
     const ticket = await ctx.runQuery(internal.slices.slicerContext, { userId: prep.userId, ticketId });
-    if ("error" in prep) return prep.error;
 
     const prompt = `MODE: TASK_SLICER
 
@@ -267,8 +178,8 @@ Ticked pain points: ${ticket.painPoints.length ? ticket.painPoints.join("; ") : 
 Accepted suggested subtasks (include each as a slice): ${ticket.suggestedSubtasks.length ? ticket.suggestedSubtasks.join("; ") : "none"}
 targetHours: ${ticket.targetHours}`;
 
-    const reply = await generateJson(prep.providers, prompt, { gemini: slicerResponseSchema, groq: SLICER_JSON_SHAPE }, slicerSchema);
-    if ("error" in reply) return { ok: false, error: reply.error };
+    const reply = await generateJson(prep.email, prompt, slicerJsonSchema, slicerSchema);
+    if ("error" in reply) return { ok: false, ...reply };
     const ordered = [...reply.result.slices].sort((a, b) => a.order - b.order);
     const slices = normalizeSlices(ordered, ticket.targetHours);
     if (slices.length === 0) return { ok: false, error: `The AI returned fewer than ${MIN_SLICES} slices. Try again or slice by hand.` };

@@ -6,8 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AiKeySection } from "@/components/settings/AiKeySection";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { JiraSection } from "@/components/settings/JiraSection";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -22,7 +20,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export function SettingsPage() {
   const viewer = useQuery(api.settings.viewer);
   const setFocus = useMutation(api.settings.setDailyFocusHours);
-  const setProvider = useMutation(api.settings.setAiProvider);
   const [hours, setHours] = useState<string | null>(null);
 
   if (!viewer) {
@@ -58,33 +55,6 @@ export function SettingsPage() {
           lastSyncedAt={viewer.jiraLastSyncedAt}
         />
       </Section>
-
-      <Section title="Gemini API key">
-        <AiKeySection provider="gemini" hasKey={viewer.hasGeminiKey} />
-      </Section>
-
-      <Section title="Groq API key">
-        <AiKeySection provider="groq" hasKey={viewer.hasGroqKey} />
-      </Section>
-
-      {viewer.hasGeminiKey && viewer.hasGroqKey && (
-        <Section title="AI provider">
-          <p className="mb-3 text-sm text-muted-foreground">Tried first for every AI call. If it fails, Karya uses the other one.</p>
-          <ToggleGroup
-            variant="outline"
-            value={[viewer.aiProvider]}
-            onValueChange={(v: string[]) => {
-              const next = v[0];
-              if (next === "gemini" || next === "groq") {
-                setProvider({ provider: next }).catch(() => toast.error("Could not save"));
-              }
-            }}
-          >
-            <ToggleGroupItem value="gemini">Gemini first</ToggleGroupItem>
-            <ToggleGroupItem value="groq">Groq first</ToggleGroupItem>
-          </ToggleGroup>
-        </Section>
-      )}
 
       <Section title="Focus">
         <form onSubmit={saveFocus}>

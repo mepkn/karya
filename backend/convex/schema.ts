@@ -25,8 +25,6 @@ export const aiFactor = v.object({
   suggestedSubtasks: v.array(v.string()),
 });
 
-export const aiProvider = v.union(v.literal("gemini"), v.literal("groq"));
-export type AiProvider = "gemini" | "groq";
 
 export default defineSchema({
   ...authTables,
@@ -43,10 +41,11 @@ export default defineSchema({
     jiraLastSyncedAt: v.optional(v.number()),
     // Sites offered after an OAuth callback that found more than one; cleared once picked.
     jiraPendingSites: v.optional(v.array(v.object({ id: v.string(), name: v.string(), url: v.string() }))),
+    // Old AI key fields: AI keys moved to kunji. migrations:clearAiKeys empties
+    // them; drop these and the aiCalls table once it has run on prod.
     geminiKeyEnc: v.optional(v.string()),
     groqKeyEnc: v.optional(v.string()),
-    // Tried first when both keys are saved; the other is the fallback. Unset means Gemini.
-    aiProvider: v.optional(aiProvider),
+    aiProvider: v.optional(v.union(v.literal("gemini"), v.literal("groq"))),
     dailyFocusHours: v.number(),
   }).index("by_user", ["userId"]),
 
@@ -160,7 +159,7 @@ export default defineSchema({
     at: v.number(),
   }).index("by_ticket", ["ticketId"]),
 
-  // One row per Gemini call, for the per-user rate limit.
+  // Old per-user rate limit rows; kunji rate-limits now. Emptied by migrations:clearAiKeys.
   aiCalls: defineTable({
     userId: v.id("users"),
     at: v.number(),

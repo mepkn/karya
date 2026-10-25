@@ -1,5 +1,4 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { Link } from "react-router";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { AlertTriangle, Check, Copy, ExternalLink, RotateCcw, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
@@ -9,7 +8,7 @@ import { computePert, estimateSummary, sumAiFactorPct, sumPainPointPct, validate
 import { formatFocusDays } from "@shared/execute";
 import { useDailyFocusHours } from "@/lib/focus";
 import { useTicket } from "@/lib/ticket-tabs";
-import { errorMessage } from "@/lib/errors";
+import { errorMessage, providerLabel } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -293,7 +292,7 @@ function RiskAnalyzer({ ticket, locked, omp, ticked }: { ticket: Doc<"tickets">;
     try {
       const res = await analyze({ ticketId: ticket._id, customText: note, tickedPainPoints: ticked, optimisticHrs: omp[0], mostLikelyHrs: omp[1], pessimisticHrs: omp[2] });
       if (!res.ok) setError({ text: res.error, needsKey: res.needsKey });
-      else setProvider(res.provider === "groq" ? "Groq" : "Gemini");
+      else setProvider(providerLabel(res.provider));
     } catch (err) {
       setError({ text: errorMessage(err) });
     } finally {
@@ -330,7 +329,7 @@ function RiskAnalyzer({ ticket, locked, omp, ticked }: { ticket: Doc<"tickets">;
             {error.needsKey && (
               <>
                 {" "}
-                <Link to="/settings" className="underline">Open Settings</Link>
+                <a href="https://kunji.pknspace.com/keys" target="_blank" rel="noreferrer" className="underline">Open kunji</a>
               </>
             )}
           </AlertDescription>

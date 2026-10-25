@@ -8,14 +8,14 @@ Personal engineering cockpit: estimate Jira tickets with PERT + risk, slice them
 - Estimate tab: O/M/P PERT, pain-point risk weights, AI risk analyzer, live estimation receipt, target in focus days
 - Execute tab: AI or manual slicing, concentric radial timer with pacing ring, colour states, buffer shield, scope-creep catcher with bonus slices and a standup copy
 - Calibrate tab: per-ticket receipt, fudge factor, pain-point auto-tuner, phase overrun heatmap, scope stats (pure math, no AI)
-- Bring your own AI key: Gemini, with Groq as a fallback (or the other way round); the server never uses a shared key
-- Jira tokens and AI keys are encrypted at rest (AES-GCM) and never returned to the browser
+- AI through [kunji](https://kunji.pknspace.com): each person uses their own AI key saved there (Anthropic, OpenAI, Gemini, Groq or any OpenAI-compatible API); karya holds no AI keys and never uses a shared one
+- Jira tokens are encrypted at rest (AES-GCM) and never returned to the browser
 - Demo tickets to try everything without Jira
 - Only emails in `ALLOWED_EMAILS` can sign up or sign in; each user sees only their own data
 
 ## Stack
 
-React 19 · TypeScript · Vite · Tailwind CSS v4 · shadcn/ui · React Router · Convex · Convex Auth · Gemini (`@google/genai`) · Groq · zod · Vitest
+React 19 · TypeScript · Vite · Tailwind CSS v4 · shadcn/ui · React Router · Convex · Convex Auth · kunji AI gateway · zod · Vitest
 
 ## Development
 
@@ -34,10 +34,12 @@ openssl rand -base64 32 | tr -d '\n' | npx convex env set ENCRYPTION_KEY
 npx convex env set JIRA_CLIENT_ID <client id>
 npx convex env set JIRA_CLIENT_SECRET <secret>
 npx convex env set JIRA_REDIRECT_URI http://127.0.0.1:3211/jira/callback
+npx convex env set KUNJI_URL http://127.0.0.1:3211        # kunji's local backend site URL (see below)
+npx convex env set KUNJI_SECRET kjs_...                      # karya's secret from kunji's Apps page
 cd ../web && npm install && npm run dev    # http://localhost:5173
 ```
 
-Then sign up, open **Settings**, add a Gemini key ([aistudio.google.com/apikey](https://aistudio.google.com/apikey), free tier is enough) and/or a Groq key ([console.groq.com/keys](https://console.groq.com/keys)), pick the preferred provider, and connect Jira.
+Then sign up, open **Settings** and connect Jira. For AI, run kunji locally too and save a key on its **AI keys** page with the same email. When both run, the backend started second takes the next ports (3212/3213), so check `CONVEX_SITE_URL` in the other's `backend/.env.local` for `KUNJI_URL` (and use that port in `JIRA_REDIRECT_URI` if karya is the one on 3213).
 
 ## Scripts
 
@@ -82,8 +84,9 @@ http://karya.pknspace.com:8080 {
 
 - **Layout:** `backend/convex` (Convex functions and schema), `shared/` (pure TypeScript used by both), `web/` (Vite app). Each has its own `.env.example`.
 - **Auth:** Convex Auth password provider; `ALLOWED_EMAILS` is checked at sign-up/sign-in and on every request. Every query and mutation validates its arguments and checks the record belongs to the caller.
-- **Secrets:** `ENCRYPTION_KEY` (32 random bytes, base64) encrypts Jira tokens and AI keys with AES-GCM. They are decrypted only inside actions; queries return flags such as `hasGeminiKey` or `jiraConnected`. Changing the key makes saved secrets unreadable, so you would reconnect Jira and re-enter the AI keys.
-- **AI:** the user's own key, Gemini (Flash-Lite) or Groq, with the other as a fallback when both are saved. Responses are validated with zod; calls are rate-limited per user (`aiCalls` table).
+- **Secrets:** `ENCRYPTION_KEY` (32 random bytes, base64) encrypts Jira tokens with AES-GCM. They are decrypted only inside actions; queries return flags such as `jiraConnected`. Changing the key makes saved tokens unreadable, so you would reconnect Jira.
+- **AI:** `lib/kunji.ts` calls kunji's gateway (`POST $KUNJI_URL/ai/v1/generate`, `Authorization: Bearer $KUNJI_SECRET`) with the user's email, the `fast` model alias and a JSON Schema; kunji picks the user's own key (preferred provider, then fallback) and rate-limits. Replies are validated with zod, with one retry on an unreadable one. With no key saved in kunji, the app shows "Add your AI key at kunji.pknspace.com". `KUNJI_SECRET` comes from kunji's admin **Apps** page; `KUNJI_URL` is kunji's `https://<deployment>.convex.site`.
+- **Old AI keys:** karya used to keep Gemini/Groq keys itself. `npx convex run migrations:clearAiKeys` (add `--prod`) removes them; people re-enter their keys in kunji.
 - **Timer:** slices store elapsed seconds plus the start timestamp of the running stretch, so time is computed from timestamps, not ticks, and survives reloads and sleep.
 
 ### Jira OAuth app
@@ -101,7 +104,8 @@ http://karya.pknspace.com:8080 {
 |---|---|
 | `backend/convex/schema.ts` | Tables: tickets, slices, timer events, scope-creep items, pain-point weights, settings |
 | `backend/convex/jira.ts`, `lib/jira.ts`, `http.ts` | OAuth connect and callback, token refresh, ticket sync |
-| `backend/convex/ai.ts`, `aiKeys.ts`, `lib/gemini.ts`, `lib/groq.ts` | Risk analyzer, slicing, key test/save |
+| `backend/convex/ai.ts`, `lib/kunji.ts` | Risk analyzer and slicing through the kunji gateway |
+| `backend/convex/migrations.ts` | One-off `clearAiKeys` (old AI keys moved to kunji) |
 | `backend/convex/estimates.ts` | Saving estimates, AI factors |
 | `backend/convex/slices.ts`, `scope.ts` | Plan, timer, buffer, scope creep, ticket completion |
 | `backend/convex/calibration.ts` | Receipt and calibration overview, weight tuning |

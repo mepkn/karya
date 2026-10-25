@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { Link } from "react-router";
 import { useAction, useMutation } from "convex/react";
 import { ArrowDown, ArrowUp, GripVertical, Lock, Plus, Save, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Doc } from "@convex/_generated/dataModel";
 import { MAX_SLICES, PHASE_LABEL, MAX_TITLE_CHARS, PHASES, formatFocusDays, formatMinutes, targetSeconds, validatePlan, type Phase } from "@shared/execute";
-import { errorMessage } from "@/lib/errors";
+import { errorMessage, providerLabel } from "@/lib/errors";
 import { useDailyFocusHours } from "@/lib/focus";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -69,7 +68,7 @@ export function PlanEditor({ ticket, slices }: { ticket: Doc<"tickets">; slices:
       else {
         setRows(res.result.map(toRow));
         setDirty(false);
-        toast.success(`Sliced via ${res.provider === "groq" ? "Groq" : "Gemini"}`);
+        toast.success(`Sliced via ${providerLabel(res.provider)}`);
       }
     } catch (err) {
       setAiError({ text: errorMessage(err, "Slicing failed. Try again.") });
@@ -112,9 +111,7 @@ export function PlanEditor({ ticket, slices }: { ticket: Doc<"tickets">; slices:
           <AlertDescription>
             {aiError.text}{" "}
             {aiError.needsKey && (
-              <Link to="/settings" className="underline">
-                Open Settings
-              </Link>
+              <a href="https://kunji.pknspace.com/keys" target="_blank" rel="noreferrer" className="underline">Open kunji</a>
             )}
           </AlertDescription>
         </Alert>
