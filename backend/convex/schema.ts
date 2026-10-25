@@ -41,11 +41,6 @@ export default defineSchema({
     jiraLastSyncedAt: v.optional(v.number()),
     // Sites offered after an OAuth callback that found more than one; cleared once picked.
     jiraPendingSites: v.optional(v.array(v.object({ id: v.string(), name: v.string(), url: v.string() }))),
-    // Old AI key fields: AI keys moved to kunji. migrations:clearAiKeys empties
-    // them; drop these and the aiCalls table once it has run on prod.
-    geminiKeyEnc: v.optional(v.string()),
-    groqKeyEnc: v.optional(v.string()),
-    aiProvider: v.optional(v.union(v.literal("gemini"), v.literal("groq"))),
     dailyFocusHours: v.number(),
   }).index("by_user", ["userId"]),
 
@@ -158,10 +153,4 @@ export default defineSchema({
     note: v.optional(v.string()),
     at: v.number(),
   }).index("by_ticket", ["ticketId"]),
-
-  // Old per-user rate limit rows; kunji rate-limits now. Emptied by migrations:clearAiKeys.
-  aiCalls: defineTable({
-    userId: v.id("users"),
-    at: v.number(),
-  }).index("by_user_at", ["userId", "at"]),
 });

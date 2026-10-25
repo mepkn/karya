@@ -86,7 +86,6 @@ http://karya.pknspace.com:8080 {
 - **Auth:** Convex Auth password provider; `ALLOWED_EMAILS` is checked at sign-up/sign-in and on every request. Every query and mutation validates its arguments and checks the record belongs to the caller.
 - **Secrets:** `ENCRYPTION_KEY` (32 random bytes, base64) encrypts Jira tokens with AES-GCM. They are decrypted only inside actions; queries return flags such as `jiraConnected`. Changing the key makes saved tokens unreadable, so you would reconnect Jira.
 - **AI:** `lib/kunji.ts` calls kunji's gateway (`POST $KUNJI_URL/ai/v1/generate`, `Authorization: Bearer $KUNJI_SECRET`) with the user's email, the `fast` model alias and a JSON Schema; kunji picks the user's own key (preferred provider, then fallback) and rate-limits. Replies are validated with zod, with one retry on an unreadable one. With no key saved in kunji, the app shows "Add your AI key at kunji.pknspace.com". `KUNJI_SECRET` comes from kunji's admin **Apps** page; `KUNJI_URL` is kunji's `https://<deployment>.convex.site`.
-- **Old AI keys:** karya used to keep Gemini/Groq keys itself. `npx convex run migrations:clearAiKeys` (add `--prod`) removes them; people re-enter their keys in kunji.
 - **Timer:** slices store elapsed seconds plus the start timestamp of the running stretch, so time is computed from timestamps, not ticks, and survives reloads and sleep.
 
 ### Jira OAuth app
@@ -105,7 +104,6 @@ http://karya.pknspace.com:8080 {
 | `backend/convex/schema.ts` | Tables: tickets, slices, timer events, scope-creep items, pain-point weights, settings |
 | `backend/convex/jira.ts`, `lib/jira.ts`, `http.ts` | OAuth connect and callback, token refresh, ticket sync |
 | `backend/convex/ai.ts`, `lib/kunji.ts` | Risk analyzer and slicing through the kunji gateway |
-| `backend/convex/migrations.ts` | One-off `clearAiKeys` (old AI keys moved to kunji) |
 | `backend/convex/estimates.ts` | Saving estimates, AI factors |
 | `backend/convex/slices.ts`, `scope.ts` | Plan, timer, buffer, scope creep, ticket completion |
 | `backend/convex/calibration.ts` | Receipt and calibration overview, weight tuning |

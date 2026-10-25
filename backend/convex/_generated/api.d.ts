@@ -22,7 +22,6 @@ import type * as lib_demoTickets from "../lib/demoTickets.js";
 import type * as lib_jira from "../lib/jira.js";
 import type * as lib_kunji from "../lib/kunji.js";
 import type * as lib_secrets from "../lib/secrets.js";
-import type * as migrations from "../migrations.js";
 import type * as scope from "../scope.js";
 import type * as settings from "../settings.js";
 import type * as slices from "../slices.js";
@@ -49,7 +48,6 @@ declare const fullApi: ApiFromModules<{
   "lib/jira": typeof lib_jira;
   "lib/kunji": typeof lib_kunji;
   "lib/secrets": typeof lib_secrets;
-  migrations: typeof migrations;
   scope: typeof scope;
   settings: typeof settings;
   slices: typeof slices;
